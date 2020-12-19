@@ -53,9 +53,9 @@ class BaseTrainer:
 
         # setup directory for checkpoint saving
         start_time = datetime.datetime.now().strftime('%m%d_%H%M%S')
-        self.checkpoint_dir = os.path.join(config['trainer']['save_dir'], config['name'], start_time)
+        self.checkpoint_dir = os.path.join(config['trainer']['save_dir'], config['name'])
         # setup visualization writer instance
-        writer_dir = os.path.join(config['visualization']['log_dir'], config['name'], start_time)
+        writer_dir = os.path.join(config['visualization']['log_dir'], config['name'])
         self.writer = SummaryWriter(writer_dir)
         if hasattr(self.loss, "set_writer"):
             self.loss.set_writer(self.writer)
@@ -89,9 +89,10 @@ class BaseTrainer:
         """
         Full training logic
         """
+        all_results = []
         for epoch in range(self.start_epoch, self.epochs + 1):
 
-            result = self._train_epoch(epoch)
+            result, all_results = self._train_epoch(epoch, all_results)
             
             # save logged informations into log dict
             log = {'epoch': epoch}
@@ -113,30 +114,38 @@ class BaseTrainer:
             # evaluate model performance according to configured metric, save best checkpoint as model_best
             best = False
             self.latest = None
-            if epoch % self.save_freq == 0:
-                self._save_checkpoint(epoch, save_best=best)
-            if self.monitor_mode != 'off':
-                try:
-                    if np.isnan(log[self.monitor]):
-                        return self.monitor_best, log[self.monitor]
-                    self.latest = log[self.monitor]
-                    if  (self.monitor_mode == 'min' and log[self.monitor] < self.monitor_best) or\
-                        (self.monitor_mode == 'max' and log[self.monitor] > self.monitor_best):
-                        self.monitor_best = log[self.monitor]
-                        self.monitor_best_se = 0 #log[self.monitor + "_se"]
-                        best = True
-                        self._save_checkpoint(epoch, save_best=best)
-                        self.best_epoch = epoch
-                    if self.early_stopping != 0:
-                        if epoch - self.best_epoch >= self.early_stopping:
-                            return self.monitor_best, log[self.monitor], self.monitor_best_se
-                except KeyError as e:
-                    msg = "Warning: Can\'t recognize metric" \
-                            + "for performance monitoring. model_best checkpoint won\'t be updated. {}".format(e)
-                    self.logger.warning(msg)
+            # if epoch % self.save_freq == 0:
+            #     self._save_checkpoint(epoch, save_best=best)
+            # if self.monitor_mode != 'off':
+            #     try:
+            #         if np.isnan(log[self.monitor]):
+            #             return self.monitor_best, log[self.monitor]
+            #         self.latest = log[self.monitor]
+            #         if  (self.monitor_mode == 'min' and log[self.monitor] < self.monitor_best) or\
+            #             (self.monitor_mode == 'max' and log[self.monitor] > self.monitor_best):
+            #             self.monitor_best = log[self.monitor]
+            #             self.monitor_best_se = 0 #log[self.monitor + "_se"]
+            #             best = True
+            #             self._save_checkpoint(epoch, save_best=best)
+            #             self.best_epoch = epoch
+            #         if self.early_stopping != 0:
+            #             if epoch - self.best_epoch >= self.early_stopping:
+            #                 return self.monitor_best, log[self.monitor], self.monitor_best_se
+            #     except KeyError as e:
+            #         msg = "Warning: Can\'t recognize metric" \
+            #                 + "for performance monitoring. model_best checkpoint won\'t be updated. {}".format(e)
+            #         self.logger.warning(msg)
+        all_results = np.asarray(all_results)
+        np.savez(self.checkpoint_dir + '/results.npz',
+                 val_loss=all_results[:, 0],
+                 val_acc_mean=all_results[:, 1],
+                 val_acc_std=all_results[:, 2],
+                 val_uncertainty=all_results[:, 3],
+                 val_kl=all_results[:, 4],
+                 val_nll=all_results[:, -1])
         return self.monitor_best, self.latest, self.monitor_best_se
 
-    def _train_epoch(self, epoch):
+    def _train_epoch(self, epoch, val_results_track):
         """
         Training logic for an epoch
 

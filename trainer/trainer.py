@@ -56,7 +56,7 @@ class Trainer(BaseTrainer):
                 self.writer.add_scalar('{}'.format(metric.__name__), acc_metrics[i])
         return acc_metrics
 
-    def _train_epoch(self, epoch):
+    def _train_epoch(self, epoch, val_results_track):
         """
         Training logic for an epoch
 
@@ -125,9 +125,10 @@ class Trainer(BaseTrainer):
 
         if self.do_validation and epoch % self.eval_freq == 0:
             val_log = self._valid_epoch(epoch)
+            val_results_track.append([val.item() for val in val_log.values()])
             log = {**log, **val_log}
 
-        return log
+        return log, val_results_track
 
     def _valid_epoch(self, epoch):
         """
@@ -144,34 +145,42 @@ class Trainer(BaseTrainer):
         total_nll = 0.0
         num_batches = len(self.valid_data_loader)
         all_val_metrics = np.zeros((num_batches, len(self.metrics)))
+        all_uncertainties = []
         if hasattr(self.data_loader.sampler, "indices"):
             print("Evaluating on datapoints: ", len(self.valid_data_loader.sampler.indices))
         with torch.no_grad():
             for batch_idx, (data, target) in enumerate(self.valid_data_loader):
                 output = self._predict(data, self.variational_eval_samples)
-
+                _, uncertainties = self._estimate(data)
+                uncertainties = torch.sum(uncertainties) / uncertainties.shape[0]
+                all_uncertainties.append(uncertainties.item())
                 target = target.to(self.device)
 
-                nll_loss, kl_term  = self.loss.compute_loss(output, target)
+                nll_loss, kl_term = self.loss.compute_loss(output, target)
                 total_nll += nll_loss
                 total_kl += kl_term
 
                 batch_eval_metrics = self._eval_metrics(output.detach(), target.detach(), verbose=False)
                 all_val_metrics[batch_idx, :] = batch_eval_metrics
 
+            total_uncertainty = np.mean(np.asarray(all_uncertainties), axis=0)
             total_val_metrics = np.mean(all_val_metrics, axis=0)
             total_val_metric_se = np.std(all_val_metrics, axis=0) / np.sqrt(num_batches)
             total_val_loss = total_nll + total_kl
-            self.writer.add_scalar('val_loss', (total_val_loss))
-            self.writer.add_scalar('val_kl', (total_kl))
-            self.writer.add_scalar('val_nll', (total_nll))
+            self.writer.add_scalar('Validation Loss', total_val_loss)
+            self.writer.add_scalar('Validation KL', total_kl / num_batches)
+            self.writer.add_scalar('Validation NLL', total_nll / num_batches)
+            self.writer.add_scalar('Validation Uncertainty', total_uncertainty)
             for i, metric in enumerate(self.metrics):
                 self.writer.add_scalar('val_{}'.format(metric.__name__), total_val_metrics[i])
 
         return {
             'val_loss': total_val_loss / len(self.valid_data_loader),
-            'val_metrics': (total_val_metrics).tolist(),
-            'val_metrics_se': (total_val_metric_se).tolist()
+            'val_metrics': total_val_metrics,
+            'val_metrics_se': total_val_metric_se,
+            'uncertainty': total_uncertainty,
+            'val_kl': total_kl / num_batches,
+            'val_nll': total_nll / num_batches
         }
 
     def _predict(self, data, variational_samples=None):
@@ -204,7 +213,7 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             data = torch.Tensor(data)
             data = data.to(self.device)
-            output = self._predict(data.permute((0,3,1,2)), variational_samples=20)
+            output = self._predict(data, variational_samples=20)
             predictions = torch.mean(torch.exp(output), dim=1)[:, 1]
             uncertainties = _mi(output, None)  # This is [examples]
             return predictions, uncertainties

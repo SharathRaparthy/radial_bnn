@@ -60,6 +60,7 @@ def main(config, resume):
 
     return monitor_best, monitor_last, monitor_best_se
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Template')
     parser.add_argument('-c', '--config', default=None, type=str,

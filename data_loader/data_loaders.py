@@ -23,6 +23,7 @@ class MNISTDataLoader(torch.utils.data.dataloader.DataLoader):
             "percent_used_for_validation", 0.1
         }
     """
+
     def __init__(self,
                  data_dir="",
                  batch_size=16,
@@ -32,7 +33,7 @@ class MNISTDataLoader(torch.utils.data.dataloader.DataLoader):
         assert stage in ["training", "validation", "test"]
         trsfm = transforms.Compose([
             transforms.ToTensor()
-            ])
+        ])
 
         train = True
         if stage == "test":
@@ -74,7 +75,7 @@ class FashionMNISTDataLoader(torch.utils.data.dataloader.DataLoader):
     """
 
     def __init__(self,
-                 root="",
+                 data_dir="",
                  batch_size=16,
                  shuffle=True,
                  num_workers=1,
@@ -85,13 +86,13 @@ class FashionMNISTDataLoader(torch.utils.data.dataloader.DataLoader):
             transforms.ToTensor(),
             transforms.Normalize((0.2861,), (0.3530,))
 
-            ])
+        ])
 
         train = True
         if stage == "test":
             train = False
 
-        self.dataset = datasets.FashionMNIST(root, train=train, download=True, transform=trsfm)
+        self.dataset = datasets.FashionMNIST(data_dir, train=train, download=True, transform=trsfm)
 
         # Perform validation set split unless this is test set. Note this assumes dataset is pre-randomized.
         indices = np.arange(len(self.dataset))
@@ -102,10 +103,9 @@ class FashionMNISTDataLoader(torch.utils.data.dataloader.DataLoader):
             elif stage == "validation":
                 indices = indices[split_idx:]
         sampler = torch.utils.data.sampler.SubsetRandomSampler(indices)
-        super(MNISTDataLoader, self).__init__(self.dataset,
-                                              sampler=sampler,
-                                              batch_size=batch_size,
-                                              shuffle=shuffle,
-                                              num_workers=num_workers,
-                                              drop_last=True)
+        super(FashionMNISTDataLoader, self).__init__(self.dataset,
+                                                     sampler=sampler,
+                                                     batch_size=batch_size,
+                                                     num_workers=num_workers,
+                                                     drop_last=True)
         # This data has shape [batch_size, 1, 28, 28]

@@ -1,8 +1,8 @@
 {
-    "name": "toy_cnn_mnist_MFVI",
+    "name": "toy_fashion_mnist_MFVI",
     "n_gpu": 1,
     "seed": "random",
-    
+
     "arch": {
         "type": "SVI_Conv_Classifier",
         "args": {
@@ -10,7 +10,7 @@
             "out_features": 10,
             "initial_rho": -4,
             "initial_mu_std": "he",
-            "variational_distribution": "gaussian",
+            "variational_distribution": "radial",
             "prior": {
                 "name": "gaussian_prior",
                 "sigma": 1,
@@ -19,11 +19,11 @@
         }
     },
     "data_loader": {
-        "type": "MNISTDataLoader",
-        "args": {
-            "data_dir": "data/MNIST",
+      "type": "FashionMNISTDataLoader",
+      "args": {
+            "data_dir": "data/FashionMNIST",
             "batch_size": 64,
-            "num_workers": 1,
+            "num_workers": 4,
             "percent_used_for_validation": 0.1
         }
     },

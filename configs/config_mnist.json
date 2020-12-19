@@ -1,5 +1,5 @@
 {
-    "name": "toy_mnist",
+    "name": "toy_mnist_MFVI",
     "n_gpu": 1,
     "seed": "random",
     
@@ -11,7 +11,7 @@
             "out_features": 10,
             "initial_rho": -4,
             "initial_mu_std": "he",
-            "variational_distribution": "radial",
+            "variational_distribution": "gaussian",
             "prior": {
                 "name": "gaussian_prior",
                 "sigma": 1,

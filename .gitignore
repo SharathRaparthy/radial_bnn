@@ -1,1 +1,6 @@
 *__pycache__*
+
+/projects
+/variational_accuracies_plot.png
+/*.npz
+/*.ipynb
